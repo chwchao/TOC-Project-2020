@@ -11,7 +11,8 @@ pygraphviz = "==1.5"
 transitions = "==0.6.9"
 line-bot-sdk = "==1.14.0"
 Flask = "==1.0.2"
+pymongo = "==3.5.1"
 
 
 [requires]
-python_version = "3.6"
+python_version = "3.7"
