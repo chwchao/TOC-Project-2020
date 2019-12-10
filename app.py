@@ -231,7 +231,7 @@ def webhook_handler():
                 def get_left(course):
                     department = course[0] +course[1]
                     course = course[2] + course[3] + course[4]
-                    browser = webdriver.Chrome(execution_path=chrome_driver_path, chrome_options=chrome_options)
+                    browser = webdriver.Chrome(executable_path=chrome_driver_path, chrome_options=chrome_options)
                     browser.get('http://course-query.acad.ncku.edu.tw/qry/qry001.php?dept_no=' + department)
                     count = 1
                     while 1:
