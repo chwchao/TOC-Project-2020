@@ -20,6 +20,11 @@ from selenium.common.exceptions import NoSuchElementException
 import time
 import datetime
 
+chrome_options = webdriver.ChromeOptions()
+chrome_options.add_argument('--disable-gpu')
+chrome_options.add_argument('--no-sandbox')
+chrome_options.binary_location = os.getenv("GOOGLE_CHROME_PATH", None)
+
 load_dotenv()
 
 machine = TocMachine(
@@ -98,6 +103,7 @@ app = Flask(__name__, static_url_path="/public")
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", None)
 channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", None)
 mongo_uri = os.getenv("MONGODB_URI", None)
+chrome_path = os.getenv("GOOGLE_CHROME_PATH", None)
 if channel_secret is None:
     print("Specify LINE_CHANNEL_SECRET as environment variable.")
     sys.exit(1)
@@ -225,7 +231,7 @@ def webhook_handler():
                 def get_left(course):
                     department = course[0] +course[1]
                     course = course[2] + course[3] + course[4]
-                    browser = webdriver.Chrome("./chromedriver")
+                    browser = webdriver.Chrome((execution_path=chrome_path, chrome_options=chrome_options)
                     browser.get('http://course-query.acad.ncku.edu.tw/qry/qry001.php?dept_no=' + department)
                     count = 1
                     while 1:
