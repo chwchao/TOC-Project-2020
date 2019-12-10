@@ -71,19 +71,65 @@ Or You can use [servo](http://serveo.net/) to expose local servers to the intern
 
 
 ## Finite State Machine
-![fsm](./img/show-fsm.png)
+![fsm](./public/fsm.jpg)
 
 ## Usage
-The initial state is set to `user`.
 
-Every time `user` state is triggered to `advance` to another state, it will `go_back` to `user` state after the bot replies corresponding message.
+It's an app for NCKU students to track remain places of a class.
+Accounts are based on users' line ID, and all working state and information will be stored in cloud.
+
+Users can add/delete courses to/from their own personal data, and also checked what courses they're checking, and also the remain places of these classes.
+
+The initial state is set to `visitor`.
+
+Which triggered is according to the command the user entered.
+
+* visitor
+	* Input: "Login"
+		* Reply: "Hello \***"
+
+	* Input: else
+		* Reply: "Please login first."
+
+* naming
+	* Input: \*\*\*
+		* Reply: "Hello \***"
 
 * user
-	* Input: "go to state1"
-		* Reply: "I'm entering state1"
+	* Input: "Logout"
+		* Reply: "Bye \***"
 
-	* Input: "go to state2"
-		* Reply: "I'm entering state2"
+	* Input: "Add"
+		* Reply: "Please enter the course number"
+
+    * Input: "Delete"
+        * Reply: "Please enter the course number"
+
+    * Input: "List"
+        * Reply: List out all the following courses
+        
+    * Input: "Check"
+        * Reply: List out all the left number of following courses
+
+* add_course
+	* Input: 1 letter + 4 numbers
+		* Reply: "***** added"
+
+	* Input: "Cancel"
+		* Reply: "Canceled"
+		
+	* Input: Else
+		* Reply: "Please try again"
+
+* delete_course
+	* Input: 1 letter + 4 numbers
+		* Reply: "***** deleted"
+
+	* Input: "Cancel"
+		* Reply: "Canceled"
+		
+	* Input: Else
+		* Reply: "Please try again"
 
 ## Deploy
 Setting to deploy webhooks on Heroku.
