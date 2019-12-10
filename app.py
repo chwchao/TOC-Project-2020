@@ -227,7 +227,7 @@ def webhook_handler():
                     for course in user["target"]:
                         courses = courses + course
                         if course != user["target"][len(user["target"]) - 1]:
-                            courses = course + "\n"
+                            courses = courses + "\n"
                     send_text_message(event.reply_token, courses)
             elif event.message.text.lower() == "check":
 
