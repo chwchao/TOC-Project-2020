@@ -33,8 +33,8 @@ machine = TocMachine(
             "dest": "naming"
         },
         {
-            "trigger": "has_name",
-            "source": "check_name",
+            "trigger": "rename",
+            "source": "naming",
             "dest": "user"
         },
         {
@@ -150,10 +150,16 @@ def webhook_handler():
         if user_state == "visitor":
             exist = machine.login(event)
             if exist == True:
-                send_text_message(event.reply_token, "Login success!!")
+                send_text_message(event.reply_token, "Hello " + user.name)
             else:
                 machine.register()
-
+                send_text_message(event.reply_token, "Please enter your name:")
+        if user_state == "naming":
+            response = machine.rename(event.message.text)
+            if response == True:
+                send_text_message(event.reply_token, "Hello " + event.message.text)
+            else:
+                send_text_message(event.reply_token, "Rename failed, please try again.")
             
 
         

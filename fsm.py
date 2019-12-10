@@ -22,8 +22,15 @@ class TocMachine(GraphMachine):
             result = collection.update_one({"id":event.userID}, {'$set': user})
             return True
 
-    def set_start(self, name):
-        self.startState = name
+    def rename(self, name):
+        user = coll_user.find_one({"id":event.userID})
+        user.state = "user"
+        user.name = name
+        result = collection.update_one({"id":event.userID}, {'$set': user})
+        return True
+
+    def set_start(self, state):
+        self.startState = state
 
     def logout(self, event):
         return True
