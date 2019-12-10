@@ -241,7 +241,6 @@ def webhook_handler():
                         if browser.find_element_by_xpath("//tr[" + str(count) + "]//td[3]").text == course:
                             break
                         count = count + 1
-                    browser.quit()
                     return browser.find_element_by_xpath("//tr[" + str(count) + "]//td[17]").text
 
                 if len(user["target"]) == 0:
