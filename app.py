@@ -25,9 +25,6 @@ load_dotenv()
 machine = TocMachine(
     states=[
         "visitor", "user", "naming", "add_course", "delete_course"
-       # "course_add", "course_add_success", "course_add_failed"
-       # "course_delete", "course_delete_success", "course_delete_failed",
-       # "left_check"
         ],
     transitions=[
         {
@@ -55,7 +52,7 @@ machine = TocMachine(
         },
         {
             "trigger": "logout",
-            "source": ["user", "naming"],
+            "source": "user",
             "dest": "visitor",
             "conditions": "logout"
         },
