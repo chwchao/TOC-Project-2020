@@ -5,17 +5,26 @@ from flask import Flask, jsonify, request, abort, send_file
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookParser
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageSendMessage
 import pymongo
 
 from fsm import TocMachine
 from utils import send_text_message
 
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+import time
+import datetime
+
 load_dotenv()
 
 machine = TocMachine(
     states=[
-        "visitor", "user", "naming"
+        "visitor", "user", "naming", "add_course", "delete_course"
        # "course_add", "course_add_success", "course_add_failed"
        # "course_delete", "course_delete_success", "course_delete_failed",
        # "left_check"
@@ -33,9 +42,10 @@ machine = TocMachine(
             "dest": "naming"
         },
         {
-            "trigger": "rename",
-            "source": "naming",
-            "dest": "user"
+            "trigger": "go_to_naming",
+            "source": "user",
+            "dest": "naming",
+            "conditions": "go_to_naming"
         },
         {
             "trigger": "rename",
@@ -45,25 +55,47 @@ machine = TocMachine(
         },
         {
             "trigger": "logout",
-            "source": ["visitor", "user", "check_name", "naming"],
+            "source": ["user", "naming"],
             "dest": "visitor",
-            "conditions": "logout",
+            "conditions": "logout"
         },
         {
-            "trigger": "state_check",
-            "source": ["visitor", "user"],
-            "dest": ["visitor", "user"],
-            "conditions": "state_check",
+            "trigger": "go_to_add_course",
+            "source": "user",
+            "dest": "add_course",
+            "conditions": "go_to_add_course"
         },
-        {"trigger": "go_back", "source": ["state1", "state2"], "dest": "user"},
+        {
+            "trigger": "add_course",
+            "source": "add_course",
+            "dest": "user",
+            "conditions": "add_course"
+        }, 
+        {
+            "trigger": "go_to_delete_course",
+            "source": "user",
+            "dest": "delete_course",
+            "conditions": "go_to_delete_course"
+        },
+        {
+            "trigger": "delete_course",
+            "source": "delete_course",
+            "dest": "user",
+            "conditions": "delete_course"
+        },
+        {
+            "trigger": "cancel",
+            "source": ["add_course", "delete_course"],
+            "dest": "user",
+            "conditions": "cancel"
+        }
     ],
     initial="visitor",
     auto_transitions=False,
-    show_conditions=True,
+    show_conditions=True
 )
 
-app = Flask(__name__, static_url_path="")
-
+app = Flask(__name__, static_url_path="/public")
 
 # get channel_secret and channel_access_token from your environment variable
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", None)
@@ -82,7 +114,8 @@ if mongo_uri is None:
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
 client = pymongo.MongoClient(mongo_uri)
-coll_user = client.user
+db = client["heroku_46z74r0d"]
+coll_user = db.user
 
 
 @app.route("/callback", methods=["POST"])
@@ -116,8 +149,8 @@ def callback():
 def webhook_handler():
     signature = request.headers["X-Line-Signature"]
     # get request body as text
-    # body = request.get_data(as_text=True)
-    # app.logger.info(f"Request body: {body}")
+    body = request.get_data(as_text=True)
+    app.logger.info(f"Request body: {body}")
 
     # parse webhook body
     try:
@@ -135,40 +168,124 @@ def webhook_handler():
             continue
         print(f"\nFSM STATE: {machine.state}")
         print(f"REQUEST BODY: \n{body}")
-
         def get_user(event):
-            user = coll_user.find_one({"id":event.userID})
+            user = coll_user.find_one({"id":event.source.user_id})
             return user
+        
         user = get_user(event)
+        print(user)
         user_state = ""
         if user == None:
             user_state = "visitor"
         else:
-            user_state = user.state
+            user_state = user["state"]
         machine.set_start(user_state)
 
-        if user_state == "visitor":
-            exist = machine.login(event)
-            if exist == True:
-                send_text_message(event.reply_token, "Hello " + user.name)
+        if event.message.text.lower() == "logout":
+            if user_state != "visitor":
+                machine.logout(event)
+                send_text_message(event.reply_token, "Bye " + user["name"])
+                continue
             else:
-                machine.register()
+                send_text_message(event.reply_token, "Please login first")
+                continue
+
+        # visitor
+        if user_state == "visitor":
+            if event.message.text.lower() == "login":
+                exist = machine.login(event)
+                if exist == True:
+                    send_text_message(event.reply_token, "Hello " + user["name"])
+                else:
+                    machine.register()
+                    send_text_message(event.reply_token, "Please enter your name:")
+            else:
+                send_text_message(event.reply_token, "Please login first")
+
+        # user (opts)
+        elif user_state == "user":
+            if event.message.text.lower() == "rename":
+                machine.go_to_naming(event)
                 send_text_message(event.reply_token, "Please enter your name:")
-        if user_state == "naming":
-            response = machine.rename(event.message.text)
+            elif event.message.text.lower() == "add":
+                machine.go_to_add_course(event)
+                send_text_message(event.reply_token, "Please enter course number:")
+            elif event.message.text.lower() == "delete":
+                machine.go_to_delete_course(event)
+                send_text_message(event.reply_token, "Please enter course number:")
+            elif event.message.text.lower() == "list":
+                if len(user["target"]) == 0:
+                    send_text_message(event.reply_token, "You haven't follow any couse")
+                else:
+                    courses = ""
+                    for course in user["target"]:
+                        courses = courses + course
+                        if course != user["target"][len(user["target"]) - 1]:
+                            courses = course + "\n"
+                    send_text_message(event.reply_token, courses)
+            elif event.message.text.lower() == "check":
+
+                def get_left(course):
+                    department = course[0] +course[1]
+                    course = course[2] + course[3] + course[4]
+                    browser = webdriver.Chrome("./chromedriver")
+                    browser.get('http://course-query.acad.ncku.edu.tw/qry/qry001.php?dept_no=' + department)
+                    count = 1
+                    while 1:
+                        if browser.find_element_by_xpath("//tr[" + str(count) + "]//td[3]").text == course:
+                            break
+                        count = count + 1
+                    return browser.find_element_by_xpath("//tr[" + str(count) + "]//td[17]").text
+
+                if len(user["target"]) == 0:
+                    send_text_message(event.reply_token, "You haven't follow any couse")
+                else:
+                    courses = ""
+                    for course in user["target"]:
+                        courses = courses + course + " : " + get_left(course)
+                        if course != user["target"][len(user["target"]) - 1]:
+                            courses = courses + "\n"
+                    send_text_message(event.reply_token, courses)
+            elif event.message.text.lower() == "show fsm":
+                message = ImageSendMessage(
+                    original_content_url='https://1a6ca2ef.ngrok.io/fsm.png',
+                    preview_image_url='https://1a6ca2ef.ngrok.io/fsm.png'
+                )
+                line_bot_api.reply_message(event.reply_token, message)
+
+        # naming
+        elif user_state == "naming":
+            response = machine.rename(event, event.message.text)
             if response == True:
                 send_text_message(event.reply_token, "Hello " + event.message.text)
             else:
                 send_text_message(event.reply_token, "Rename failed, please try again.")
-            
 
-        
-        
-            
-        
-        response = machine.advance(event)
-        if response == False:
-            send_text_message(event.reply_token, "Not Entering any State")
+        # add course
+        elif user_state == "add_course":
+            if event.message.text.lower() == "cancel" :
+                send_text_message(event.reply_token, "Canceled")
+                machine.cancel(event)
+            else:
+                response = machine.add_course(event, event.message.text)
+                if response == True:
+                    send_text_message(event.reply_token, event.message.text + " added")
+                else:
+                    send_text_message(event.reply_token, "Please try again")
+
+        # delete course
+        elif user_state == "delete_course":
+            if event.message.text.lower() == "cancel" :
+                send_text_message(event.reply_token, "Canceled")
+                machine.cancel(event)
+            else:
+                response = machine.delete_course(event, event.message.text)
+                if response == True:
+                    send_text_message(event.reply_token, event.message.text + " deleted")
+                else:
+                    send_text_message(event.reply_token, "Not exist or wrong format. Please try again")
+                
+
 
     return "OK"
 

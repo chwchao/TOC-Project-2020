@@ -1,16 +1,23 @@
 from transitions.extensions import GraphMachine
-
+import os
 from utils import send_text_message
+
+import pymongo
+mongo_uri = os.getenv("MONGODB_URI", None)
+client = pymongo.MongoClient(mongo_uri)
+db = client.heroku_46z74r0d
+coll_user = db.user
+
 
 class TocMachine(GraphMachine):
     def __init__(self, **machine_configs):
         self.machine = GraphMachine(model=self, **machine_configs)
 
     def login(self, event):
-        user = coll_user.find_one({"id":event.userID})
+        user = coll_user.find_one({"id":event.source.user_id})
         if user == None:
             newUser = {
-                "id" : event.userID,
+                "id" : event.source.user_id,
                 "name" : "",
                 "target" : [],
                 "state" : "naming"
@@ -18,47 +25,72 @@ class TocMachine(GraphMachine):
             coll_user.insert_one(newUser)
             return False
         else:
-            user.state = "user"
-            result = collection.update_one({"id":event.userID}, {'$set': user})
+            user["state"] = "user"
+            coll_user.update_one({"id":event.source.user_id}, {'$set': user})
             return True
 
-    def rename(self, name):
-        user = coll_user.find_one({"id":event.userID})
-        user.state = "user"
-        user.name = name
-        result = collection.update_one({"id":event.userID}, {'$set': user})
+    def rename(self, event, name):
+        user = coll_user.find_one({"id":event.source.user_id})
+        user["state"] = "user"
+        user["name"] = name
+        coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+        return True
+
+    def logout(self, event):
+        user = coll_user.find_one({"id":event.source.user_id})
+        user["state"] = "visitor"
+        coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+        return True
+
+    def go_to_naming(self, event):
+        user = coll_user.find_one({"id":event.source.user_id})
+        user["state"] = "naming"
+        coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+        return True
+
+    def go_to_add_course(self, event):
+        user = coll_user.find_one({"id":event.source.user_id})
+        user["state"] = "add_course"
+        coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+        return True
+
+    def add_course(self, event, course):
+        if len(course) != 5 and course[0].isalpha() and course[1].isnumeric() and course[2].isnumeric() and course[3].isnumeric() and course[4].isnumeric():
+            return False
+        else:
+            user = coll_user.find_one({"id":event.source.user_id})
+            if course in user["target"]:
+                return False
+            else:
+                user["state"] = "user"
+                user["target"].append(course)
+                coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+                return True
+
+    def go_to_delete_course(self, event):
+        user = coll_user.find_one({"id":event.source.user_id})
+        user["state"] = "delete_course"
+        coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+        return True
+
+    def delete_course(self, event, course):
+        if len(course) != 5 and course[0].isalpha() and course[1].isnumeric() and course[2].isnumeric() and course[3].isnumeric() and course[4].isnumeric():
+            return False
+        else:
+            user = coll_user.find_one({"id":event.source.user_id})
+            if course in user["target"]:
+                user["target"].remove(course)
+                user["state"] = "user"
+                coll_user.update_one({"id":event.source.user_id}, {'$set': user})
+                return True
+            else:
+                return False
+
+    def cancel(self, event):
+        user = coll_user.find_one({"id":event.source.user_id})
+        user["state"] = "user"
+        coll_user.update_one({"id":event.source.user_id}, {'$set': user})
         return True
 
     def set_start(self, state):
         self.startState = state
-
-    def logout(self, event):
-        return True
-
-    def is_going_to_state1(self, event):
-        text = event.message.text
-        return text.lower() == "go to state1"
-
-    def is_going_to_state2(self, event):
-        text = event.message.text
-        return text.lower() == "go to state2"
-
-    def on_enter_state1(self, event):
-        print("I'm entering state1")
-
-        reply_token = event.reply_token
-        send_text_message(reply_token, "Trigger state1")
-        self.go_back()
-
-    def on_exit_state1(self):
-        print("Leaving state1")
-
-    def on_enter_state2(self, event):
-        print("I'm entering state2")
-
-        reply_token = event.reply_token
-        send_text_message(reply_token, "Trigger state2")
-        self.go_back()
-
-    def on_exit_state2(self):
-        print("Leaving state2")
