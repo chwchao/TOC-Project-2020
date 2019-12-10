@@ -20,6 +20,7 @@ from selenium.common.exceptions import NoSuchElementException
 import time
 import datetime
 
+chrome_driver_path = os.getenv("CHROMEDRIVER_PATH", None)
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--remote-debugging-port=9222')
@@ -106,7 +107,6 @@ app = Flask(__name__, static_url_path="/public")
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", None)
 channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", None)
 mongo_uri = os.getenv("MONGODB_URI", None)
-chrome_driver_path = os.getenv("CHROMEDRIVER_PATH", None)
 if channel_secret is None:
     print("Specify LINE_CHANNEL_SECRET as environment variable.")
     sys.exit(1)
